@@ -173,8 +173,7 @@
 (defun yari-ruby-obarray (&optional rehash)
   "Build collection of classes and methods for completions."
   (if (and (null rehash) (consp yari-ruby-obarray-cache))
-      ;; TODO: I do not know how to return from here properly... ;]
-      (setq yari-ruby-obarray-cache yari-ruby-obarray-cache)
+      yari-ruby-obarray-cache
     (setq yari-ruby-obarray-cache (yari-ruby-methods-from-ri))))
 
 (when-ert-loaded
