@@ -153,7 +153,7 @@
   (assert (member name (yari-ruby-obarray)) nil
           (format "%s is unknown symbol to RI." name))
   (shell-command-to-string
-   (format "ri -T %s" (shell-quote-argument name))))
+   (format "ri -T -f ansi %s" (shell-quote-argument name))))
 
 (when-ert-loaded
  (ert-deftest yari-test-ri-lookup-should-generate-error ()
@@ -304,7 +304,7 @@
   :group 'yari
   :type 'face)
 
-(defvar yari-debug nil)			;set to t when debugging
+(defvar yari-debug t)			;set to t when debugging
 
 (defun yari-find-buttons ( )
   (goto-char (point-min))
@@ -350,7 +350,8 @@
 	(progn
 	  (if t
 	      (progn
-		;; "Class: " or "Module: " if present 
+		;; "Class: " or "Module: " if present.  In Ruby 1.9.2
+		;; using RDoc 2.5.8, it is not present
 		(and yari-debug (message (format "match  1: '%s'" (match-string 1))))
 		;; "Class" or "Module"
 		(and yari-debug (message (format "match  2: '%s'" (match-string 2))))
@@ -364,7 +365,12 @@
 		(and yari-debug (message (format "match  5: '%s'" (match-string 5))))
 		;; #4 but with the :: or # removed
 		(and yari-debug (message (format "match  6: '%s'" (match-string 6))))
-		;; The final :: or #
+		;; The final :: or #.  If it is # then we know we have
+		;; an instance method.  If it is :: we can have a
+		;; Module or Class or a class method.  A class method
+		;; will be noticed by starting with something other
+		;; than an upper case letter.
+		;; (This still needs to be implemented)
 		(and yari-debug (message (format "match  7: '%s'" (match-string 7))))
 		;; The method name if a method was looked up.  If a
 		;; class or module was looked up, this is just the
@@ -374,12 +380,12 @@
 		(and yari-debug (message (format "match  9: '%s'" (match-string 9))))
 		;; "base class" if present
 		(and yari-debug (message (format "match 10: '%s'" (match-string 10))))))
- 	  (if (match-string 1)
+ 	  (if (match-string 7)
  	      (progn
- 		(and yari-debug (message "have module"))
- 		(setq class (match-string 3)))
- 	    (and yari-debug (message "do not have module"))
- 	    (setq method (match-string 8)))
+		(and yari-debug (message "have module"))
+		(setq class (match-string 3)))
+	    (and yari-debug (message "do not have module"))
+	    (setq method (match-string 8)))
 	  ;; Icky but we need to trim off the last :: or #
 	  (if (< (match-beginning 4) (match-end 4))
 	      (setq parent-class (buffer-substring (match-beginning 4)
