@@ -31,12 +31,19 @@ it uses the ri command directly so there is far less compatibility problems.
 There is no nice way I can see to communicate to the users so I'll add
 my thoughts in here.
 
-I'd like to figure out a nicer way for the completions to work.  I
-can't do yari and type in create_type.  Instead I have to type in
-ActiveRecord::ConnectionAdapters::SchemaStatements#create_table which
-is rather painful.  It woudl be nice if I could type in "foo" and have
-the list of options be the various classes (or modules) that contain a
-method named "foo".
+# I'd like to figure out a nicer way for the completions to work.  I
+# can't do yari and type in create_type.  Instead I have to type in
+# ActiveRecord::ConnectionAdapters::SchemaStatements#create_table which
+# is rather painful.  It woudl be nice if I could type in "foo" and have
+# the list of options be the various classes (or modules) that contain a
+# method named "foo".
+
+The above "wish" was accomplished by turning on ido-mode.  I'm
+comfortable having ido-mode on all the time.  However I can see where
+some might not want it on all the time.  It would be trivial to
+introduce a customizable yari option so that only yari uses ido mode
+keeping ido mode off for the rest of the emacs interfaces.  If I get a
+request for this, I'll implement it.
 
 I experimented with rvm and rvm.el.  If you are in a Rails app
 directory (top level) and do M-x rvm-activate-corresponding-ruby, it
