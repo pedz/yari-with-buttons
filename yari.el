@@ -333,6 +333,7 @@
 		(point)))
 	 (eol (progn (forward-line 1) (point)))
 	 (includes-start (re-search-forward "^Includes:" nil t))
+	 (constant-start  (re-search-forward "^Constants:" nil t))
 	 (class-start  (re-search-forward "^Class methods:" nil t))
 	 (instance-start (re-search-forward "^Instance methods:" nil t))
 	 (page-end (point-max))
@@ -342,54 +343,87 @@
 	 (method nil)
 	 search-end)
     (goto-char bol)
-    ;; Not parsing the base class "< Foo" string yet
     (if (re-search-forward
-	 " ?\\(\\(Module\\|Class\\): \\)?\\(\\(\\(\\([^#: ]+\\)\\(::\\|#\\)\\)*\\)\\([^: ]+\\)\\)\\( < \\([^ \r\n\t]+\\)\\)?[ \r\t\n]*$"
+	 " ?\\(\\(Module\\|Class\\): \\)?\\(\\(\\(\\([^#: ]+\\)\\(::\\|#\\)\\)*\\)\\([^: \t\r\n]+\\)\\)\\( < \\(\\S +\\)\\)?\\s *$"
 	 eol t)
-	(progn
-	  (if t
+	(let ((match-string0 (match-string 0))
+	      (match-string1 (match-string 1))
+	      (match-string2 (match-string 2))
+	      (match-string3 (match-string 3))
+	      (match-string4 (match-string 4))
+	      (match-string5 (match-string 5))
+	      (match-string6 (match-string 6))
+	      (match-string7 (match-string 7))
+	      (match-string8 (match-string 8))
+	      (match-string9 (match-string 9))
+	      (match-string10 (match-string 10))
+	      include-pat
+	      constant-pat
+	      class-pat
+	      instance-pat)
+	  (if t				;t for debugging
 	      (progn
 		;; "Class: " or "Module: " if present.  In Ruby 1.9.2
 		;; using RDoc 2.5.8, it is not present
-		(and yari-debug (message (format "match  1: '%s'" (match-string 1))))
-		;; "Class" or "Module"
-		(and yari-debug (message (format "match  2: '%s'" (match-string 2))))
+		(and yari-debug (message (format "match  1: '%s'" match-string1)))
+		;; "Class" or "Module" if present
+		(and yari-debug (message (format "match  2: '%s'" match-string2)))
 		;; entire class, module, or method string
-		(and yari-debug (message (format "match  3: '%s'" (match-string 3))))
+		(and yari-debug (message (format "match  3: '%s'" match-string3)))
 		;; #3 with final segment removed but the # or :: still
 		;; attached
-		(and yari-debug (message (format "match  4: '%s'" (match-string 4))))
+		(and yari-debug (message (format "match  4: '%s'" match-string4)))
 		;; The piece of the A::B::C:: string.  This is not
 		;; useful that I can see.
-		(and yari-debug (message (format "match  5: '%s'" (match-string 5))))
+		(and yari-debug (message (format "match  5: '%s'" match-string5)))
 		;; #4 but with the :: or # removed
-		(and yari-debug (message (format "match  6: '%s'" (match-string 6))))
+		(and yari-debug (message (format "match  6: '%s'" match-string6)))
 		;; The final :: or #.  If it is # then we know we have
 		;; an instance method.  If it is :: we can have a
 		;; Module or Class or a class method.  A class method
 		;; will be noticed by starting with something other
 		;; than an upper case letter.
 		;; (This still needs to be implemented)
-		(and yari-debug (message (format "match  7: '%s'" (match-string 7))))
+		(and yari-debug (message (format "match  7: '%s'" match-string7)))
 		;; The method name if a method was looked up.  If a
 		;; class or module was looked up, this is just the
 		;; final segment of what was looked up.
-		(and yari-debug (message (format "match  8: '%s'" (match-string 8))))
+		(and yari-debug (message (format "match  8: '%s'" match-string8)))
 		;; "< base class" if present
-		(and yari-debug (message (format "match  9: '%s'" (match-string 9))))
+		(and yari-debug (message (format "match  9: '%s'" match-string9)))
 		;; "base class" if present
-		(and yari-debug (message (format "match 10: '%s'" (match-string 10))))))
- 	  (if (match-string 7)
- 	      (progn
-		(and yari-debug (message "have module"))
-		(setq class (match-string 3)))
-	    (and yari-debug (message "do not have module"))
-	    (setq method (match-string 8)))
-	  ;; Icky but we need to trim off the last :: or #
+		(and yari-debug (message (format "match 10: '%s'" match-string10)))))
+	  ;; We have a module or a class if match-string 7 is
+	  ;; null... i.e. we have just "IO" for example.  We know we
+	  ;; have a method if match-string 7 is "#".  If match-string
+	  ;; 7 is "::" we have to check to see if match-string 8
+	  ;; starts with an upper case letter.  Sigh....
+	  (save-match-data
+	    (if (or (null match-string7)
+		    (and (string= match-string7 "::")
+			 (string-match "^[A-Z]" match-string8)))
+		(progn
+		  (and yari-debug (message "have module or class"))
+		  (setq class match-string3))
+	      (and yari-debug (message "have a method"))
+	      (setq method match-string8)))
+	  ;; If this page has Class:, we use one type of pattern,
+	  ;; otherwise, we use a differnt pattern
+	  (if match-string2
+	      (setq include-pat "\\s +\\([^, \n\r\t]+\\)\\(,\\|\\s *$\\)"
+		    constant-pat nil
+		    class-pat "\\s +\\([^, \n\r\t]+\\)\\(,\\|\\s *$\\)"
+		    instance-pat "\\s +\\([^, \n\r\t]+\\)\\(,\\|\\s *$\\)")
+	    (setq include-pat "^\\s +\\([^-,. \n\r\t]+\\)\\s *\n"
+		  constant-pat "^\\s +\\([^-:,. \n\r\t]+\\):?\\s *\n"
+		  class-pat "^\\s +\\([^-,. \n\r\t]+\\)\\s *\n"
+		  instance-pat "^\\s +\\([^-,. \n\r\t]+\\)\\s *\n"))
+
+	  ;; Icky but we need to trim off the last :: or # of the entire class name.
 	  (if (< (match-beginning 4) (match-end 4))
 	      (setq parent-class (buffer-substring (match-beginning 4)
 						   (match-beginning 7))))
-	  (setq base-class (match-string 10))
+	  (setq base-class match-string10)
 	  (and yari-debug (message (format "base-class %s" base-class)))
  	  (and yari-debug (message (format "parent-class %s" parent-class)))
 	  ;; Make a button for the parent class if any
@@ -411,19 +445,35 @@
  	  ;; name.
  	  (if includes-start
  	      (progn
+		(goto-char (or constant-start class-start instance-start page-end))
+		(forward-line 0)
+ 		(setq search-end (point))
  		(goto-char includes-start)
- 		(setq search-end (or class-start instance-start page-end))
- 		(while (re-search-forward " +\\([^, \n\r\t]+\\)" search-end t)
+ 		(while (re-search-forward include-pat search-end t)
  		  (make-button (match-beginning 1)
  			       (match-end 1)
  			       'type 'yari-method
  			       'face yari-emacs-method-face
  			       'yari-method (match-string 1)))))
+ 	  (if (and constant-start constant-pat)
+ 	      (progn
+		(goto-char (or class-start instance-start page-end))
+		(forward-line 0)
+ 		(setq search-end (point))
+ 		(goto-char constant-start)
+ 		(while (re-search-forward constant-pat search-end t)
+ 		  (make-button (match-beginning 1)
+ 			       (match-end 1)
+ 			       'type 'yari-method
+ 			       'face yari-emacs-method-face
+ 			       'yari-method  (concat class "::" (match-string 1))))))
  	  (if class-start
  	      (progn
+		(goto-char (or instance-start page-end))
+		(forward-line 0)
+ 		(setq search-end (point))
  		(goto-char class-start)
- 		(setq search-end (or instance-start page-end))
- 		(while (re-search-forward " +\\([^, \n\r\t]+\\)" search-end t)
+ 		(while (re-search-forward class-pat search-end t)
  		  (make-button (match-beginning 1)
  			       (match-end 1)
  			       'type 'yari-method
@@ -432,7 +482,7 @@
  	  (if instance-start
  	      (progn
  		(goto-char instance-start)
- 		(while (re-search-forward " +\\([^, \n\r\t]+\\)" nil t)
+ 		(while (re-search-forward instance-pat nil t)
  		  (make-button (match-beginning 1)
  			       (match-end 1)
  			       'type 'yari-method
